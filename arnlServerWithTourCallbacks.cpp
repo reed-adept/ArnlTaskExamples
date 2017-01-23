@@ -9,13 +9,13 @@
 
 
 
-/** Example of an ArASyncTask subclass that runs new threads when ARNL reaches goals. 
+/** Example of an ArASyncTask subclass that runs new threads when ARNL reaches goals.
    At each goal, a new thread is created which can perform some action
   asyncronously (while the ARNL path planning thread continues).
 
   One instance of this class is created in the program's main() function below
   providing the ARNL path planning task, ArRobot object, etc. and it sets everything up in its
-  constructor.  
+  constructor.
 
   To do something similar for your application, you can rename this class (and
   its instantiation in the main() function below), and modify what is done in
@@ -27,7 +27,7 @@
   class, and so this access is synchronized using a mutex. Make certain you do
   not keep the mutex locked during any long running operations or operations of
   indeterminate duration, and that in all logical paths through the code, the
-  mutex is eventually unlocked if locked.  
+  mutex is eventually unlocked if locked.
 
   This class also adds some parameters to the global ArConfig, so users can
   modify them. The parameters are added to a "ARNL Tour Goal Task Example" section.
@@ -60,12 +60,12 @@ public:
 
 
   /** A callback is added that performs tasks at each goal, and some parameters
-   * are addded to ArConfig. 
+   * are addded to ArConfig.
    */
-  TourGoalTaskExample(ArPathPlanningTask *pp, ArRobot *robot, ArServerModeGoto *servermode = NULL, ArArgumentParser *argParser = NULL) : 
+  TourGoalTaskExample(ArPathPlanningTask *pp, ArRobot *robot, ArServerModeGoto *servermode = NULL, ArArgumentParser *argParser = NULL) :
     myPathPlanner(pp), myServerMode(servermode), myCurrentGoal(1), myGoalDoneCB(this, &TourGoalTaskExample::goalDone),
 		myRobot(robot), myApproachDist(250), myNumGoals(4), myEnabled(true)
-	{	
+	{
 
     // Add some parameters to ArConfig in a new "ARNL ASyncTask Example" section so the user can adjust them from
     // MobileEyes:
@@ -90,7 +90,7 @@ public:
 		runAsync();
 	}
 
-  /* This is called for each new thread, at each goal point.  
+  /* This is called for each new thread, at each goal point.
    * It moves the robot forward a bit, tells Actin
    * to do the next arm action (numbered from 0 to myNumGoals), waits 2 seconds,
    * then backs the mobile robot up.  Then it tells the ARNL path planner to
@@ -101,7 +101,7 @@ public:
    */
 	void *runThread(void *)
 	{
-    // Make copies of variables shared between threads 
+    // Make copies of variables shared between threads
     lock();
     int currentGoal = myCurrentGoal;
     int numGoals = myNumGoals;
@@ -122,7 +122,7 @@ public:
 
 
     /* In this example, we will move the robot forward a bit, wait, then move it
-       back. 
+       back.
 
        In your application, you could do somethng here like trigger devices, cameras,
        sensors, output, speech, etc.  You can access the current goal name and
@@ -140,7 +140,7 @@ public:
 		myRobot->clearDirectMotion();
     ArUtil::sleep(500);
 
-    // Wait a bit.  
+    // Wait a bit.
     ArLog::log(ArLog::Normal, "Would do goal-specific task at goal %d.", currentGoal);
     ArLog::log(ArLog::Normal, "Waiting 3 sec.");
     if(myServerMode) myServerMode->setStatus("Waiting 3 sec");
@@ -163,7 +163,7 @@ public:
 		++currentGoal;
 		if(currentGoal > numGoals) currentGoal = 0;
 		char name[128];
-		snprintf(name, 127, "Goal %d", currentGoal); 
+		snprintf(name, 127, "Goal %d", currentGoal);
 		ArLog::log(ArLog::Normal, "Going to next goal %s", name);
     if(myServerMode) myServerMode->setStatus("ASyncTask example done. Going to next goal.");
 		myPathPlanner->pathPlanToGoal(name);
@@ -173,10 +173,10 @@ public:
     myCurrentGoal = currentGoal;
     unlock();
 
-    // This is the end of the thread. 
+    // This is the end of the thread.
     return 0;
 	}
-	
+
 };
 
 
@@ -239,14 +239,14 @@ int main(int argc, char **argv)
   // directory to Arnl's default directory; addDirectories() appends this
   // "examples" directory.
   char fileDir[1024];
-  ArUtil::addDirectories(fileDir, sizeof(fileDir), Aria::getDirectory(), 
+  ArUtil::addDirectories(fileDir, sizeof(fileDir), Aria::getDirectory(),
 			 "examples");
-  
-  
+
+
   // To direct log messages to a file, or to change the log level, use these  calls:
   //ArLog::init(ArLog::File, ArLog::Normal, "log.txt", true, true);
   //ArLog::init(ArLog::File, ArLog::Verbose);
- 
+
   // Add a section to the configuration to change ArLog parameters
   ArLog::addToConfig(Aria::getConfig());
 
@@ -256,7 +256,7 @@ int main(int argc, char **argv)
 
   // Our networking server
   ArServerBase server;
-  
+
 
   // Set up our simpleOpener, used to set up the networking server
   ArServerSimpleOpener simpleOpener(&parser);
@@ -267,18 +267,18 @@ int main(int argc, char **argv)
   // Tell the laser connector to always connect the first laser since
   // this program always requires a laser.
   parser.addDefaultArgument("-connectLaser");
-  
+
   // Load default arguments for this computer (from /etc/Aria.args, environment
   // variables, and other places)
   parser.loadDefaultArguments();
 
-  // Parse arguments 
+  // Parse arguments
   if (!Aria::parseArgs() || !parser.checkHelpAndWarnUnparsed())
   {
     logOptions(argv[0]);
     Aria::exit(1);
   }
-  
+
 
   // This causes Aria::exit(9) to be called if the robot unexpectedly
   // disconnects
@@ -286,7 +286,7 @@ int main(int argc, char **argv)
   robot.addDisconnectOnErrorCB(&shutdownFunctor);
 
 
-  // Create an ArSonarDevice object (ArRangeDevice subclass) and 
+  // Create an ArSonarDevice object (ArRangeDevice subclass) and
   // connect it to the robot.
   ArSonarDevice sonarDev;
   robot.addRangeDevice(&sonarDev);
@@ -302,7 +302,7 @@ int main(int argc, char **argv)
 
   // Start the robot thread.
   robot.runAsync(true);
-  
+
 
   // connect the laser(s) if it was requested, this adds them to the
   // robot too, and starts them running in their own threads
@@ -325,7 +325,7 @@ int main(int argc, char **argv)
 
 
     /* Create and set up map object */
-  
+
   // Set up the map object, this will look for files in the examples
   // directory (unless the file name starts with a /, \, or .
   // You can take out the 'fileDir' argument to look in the program's current directory
@@ -341,7 +341,7 @@ int main(int argc, char **argv)
   // it will still work.
   map.setIgnoreCase(true);
 
-    
+
     /* Create localization and path planning threads */
 
 
@@ -355,7 +355,7 @@ int main(int argc, char **argv)
 
 
 
-  // Set some options on each laser that the laser connector 
+  // Set some options on each laser that the laser connector
   // connected to.
   std::map<int, ArLaser *>::iterator laserIt;
   for (laserIt = robot.getLaserMap()->begin();
@@ -388,8 +388,8 @@ int main(int argc, char **argv)
     laserPacketCountName = laser->getName();
     laserPacketCountName += " Packet Count";
     Aria::getInfoGroup()->addStringInt(
-	    laserPacketCountName.c_str(), 10, 
-	    new ArRetFunctorC<int, ArLaser>(laser, 
+	    laserPacketCountName.c_str(), 10,
+	    new ArRetFunctorC<int, ArLaser>(laser,
 					 &ArLaser::getReadingCount));
   }
 
@@ -436,17 +436,17 @@ int main(int argc, char **argv)
   {
     // Make the handler for multi robot information (this sends the
     // information to the central server)
-    //ArServerHandlerMultiRobot *handlerMultiRobot = 
-    new ArServerHandlerMultiRobot(&server, &robot, 
+    //ArServerHandlerMultiRobot *handlerMultiRobot =
+    new ArServerHandlerMultiRobot(&server, &robot,
 						      &pathTask,
 						      &locTask, &map);
-    
+
     // Normally each robot, and the central server, must all have
     // the same map name for the central server to share robot
     // information.  (i.e. they are operating in the same space).
-    // This changes the map name that ArServerHandlerMutliRobot 
+    // This changes the map name that ArServerHandlerMutliRobot
     // reports to the central server, in case you want this individual
-    // robot to load a different map file name, but still report 
+    // robot to load a different map file name, but still report
     // the common map file to the central server.
     //handlerMultiRobot->overrideMapName("central.map");
 
@@ -454,11 +454,11 @@ int main(int argc, char **argv)
     // the central server and presents it as virtual range readings
     // to ARNL
     ArMultiRobotRangeDevice *multiRobotRangeDevice = new ArMultiRobotRangeDevice(&server);
-    
+
     robot.addRangeDevice(multiRobotRangeDevice);
-    pathTask.addRangeDevice(multiRobotRangeDevice, 
+    pathTask.addRangeDevice(multiRobotRangeDevice,
 			    ArPathPlanningTask::BOTH);
-    
+
     // Set up options for drawing multirobot information in MobileEyes.
     multiRobotRangeDevice->setCurrentDrawingData(
 	    new ArDrawingData("polyDots", ArColor(125, 125, 0),
@@ -481,7 +481,7 @@ int main(int argc, char **argv)
     ArMultiRobotPeerRangeDevice *multiRobotPeerRangeDevice = NULL;
     multiRobotPeerRangeDevice = new ArMultiRobotPeerRangeDevice(&map);
     // make our thing that sends information to the other servers
-    multiRobotPeer = new ArServerHandlerMultiRobotPeer(&server, &robot, 
+    multiRobotPeer = new ArServerHandlerMultiRobotPeer(&server, &robot,
 						     &pathTask, &locTask);
     // hook the two together so they both know what priority this robot is
     multiRobotPeer->setNewPrecedenceCallback(
@@ -496,7 +496,7 @@ int main(int argc, char **argv)
 	    multiRobotPeer->getChangeFingerprintCB());
     // then add the robot to the places it needs to be
     robot.addRangeDevice(multiRobotPeerRangeDevice);
-    pathTask.addRangeDevice(multiRobotPeerRangeDevice, 
+    pathTask.addRangeDevice(multiRobotPeerRangeDevice,
 			    ArPathPlanningTask::BOTH);
 
     // Set the range device so that we can see the information its using
@@ -518,7 +518,7 @@ int main(int argc, char **argv)
 
   /* Add additional range devices to the robot and path planning task (so it
      avoids obstacles detected by these devices) */
-  
+
   // Add IR range device to robot and path planning task (so it avoids obstacles
   // detected by this device)
   robot.lock();
@@ -557,23 +557,23 @@ int main(int argc, char **argv)
   // from planning through space that is actually clear.
   ArGlobalReplanningRangeDevice replanDev(&pathTask);
 
-  
+
   // Service to provide drawings of data in the map display :
   ArServerInfoDrawings drawings(&server);
   drawings.addRobotsRangeDevices(&robot);
   drawings.addRangeDevice(&replanDev);
 
-  /* Draw a box around the local path planning area use this 
-    (You can enable this particular drawing from custom commands 
+  /* Draw a box around the local path planning area use this
+    (You can enable this particular drawing from custom commands
     which is set up down below in ArServerInfoPath) */
   ArDrawingData drawingDataP("polyLine", ArColor(200,200,200), 1, 75);
-  ArFunctor2C<ArPathPlanningTask, ArServerClient *, ArNetPacket *> 
+  ArFunctor2C<ArPathPlanningTask, ArServerClient *, ArNetPacket *>
     drawingFunctorP(&pathTask, &ArPathPlanningTask::drawSearchRectangle);
-  drawings.addDrawing(&drawingDataP, "Local Plan Area", &drawingFunctorP); 
+  drawings.addDrawing(&drawingDataP, "Local Plan Area", &drawingFunctorP);
 
   /* Show the sample points used by MCL */
   ArDrawingData drawingDataL("polyDots", ArColor(0,255,0), 100, 75);
-  ArFunctor2C<ArLocalizationTask, ArServerClient *, ArNetPacket *> 
+  ArFunctor2C<ArLocalizationTask, ArServerClient *, ArNetPacket *>
     drawingFunctorL(&locTask, &ArLocalizationTask::drawRangePoints);
   drawings.addDrawing(&drawingDataL, "Localization Points", &drawingFunctorL);
 
@@ -597,7 +597,7 @@ int main(int argc, char **argv)
   ArServerHandlerLocalization serverLocHandler(&server, &robot, &locTask);
 
   // If you're using MobileSim, ArServerHandlerLocalization sends it a command
-  // to move the robot's true pose if you manually do a localization through 
+  // to move the robot's true pose if you manually do a localization through
   // MobileEyes.  To disable that behavior, use this constructor call instead:
   // ArServerHandlerLocalization serverLocHandler(&server, &robot, true, false);
   // The fifth argument determines whether to send the command to MobileSim.
@@ -619,7 +619,7 @@ int main(int argc, char **argv)
 
 
 
-  // service that allows client to change configuration parameters in ArConfig 
+  // service that allows client to change configuration parameters in ArConfig
   ArServerHandlerConfig handlerConfig(&server, Aria::getConfig(),
 				      Arnl::getTypicalDefaultParamFileName(),
 				      Aria::getDirectory());
@@ -646,7 +646,7 @@ int main(int argc, char **argv)
   ArSonarAutoDisabler sonarAutoDisabler(&robot);
 
   // Teleoperation modes To drive by keyboard, joystick, etc:
-  ArServerModeRatioDrive modeRatioDrive(&server, &robot);  
+  ArServerModeRatioDrive modeRatioDrive(&server, &robot);
 //  ArServerModeDrive modeDrive(&server, &robot);            // Older mode for compatability
 
 
@@ -673,22 +673,22 @@ int main(int argc, char **argv)
   // data you want.
   ArServerInfoStrings stringInfo(&server);
   Aria::getInfoGroup()->addAddStringCallback(stringInfo.getAddStringFunctor());
-  
+
   // Provide a set of informational data (turn on in MobileEyes with
   // View->Custom Details)
 
   Aria::getInfoGroup()->addStringInt(
-	  "Motor Packet Count", 10, 
-	  new ArConstRetFunctorC<int, ArRobot>(&robot, 
+	  "Motor Packet Count", 10,
+	  new ArConstRetFunctorC<int, ArRobot>(&robot,
 					       &ArRobot::getMotorPacCount));
 
   Aria::getInfoGroup()->addStringDouble(
-	  "Laser Localization Score", 8, 
+	  "Laser Localization Score", 8,
 	  new ArRetFunctorC<double, ArLocalizationTask>(
 		  &locTask, &ArLocalizationTask::getLocalizationScore),
 	  "%.03f");
   Aria::getInfoGroup()->addStringInt(
-	  "Laser Loc Num Samples", 8, 
+	  "Laser Loc Num Samples", 8,
 	  new ArRetFunctorC<int, ArLocalizationTask>(
 		  &locTask, &ArLocalizationTask::getCurrentNumSamples),
 	  "%4d");
@@ -709,7 +709,7 @@ int main(int argc, char **argv)
 
   // Setup the dock if there is a docking system on board.
   ArServerModeDock *modeDock = NULL;
-  modeDock = ArServerModeDock::createDock(&server, &robot, &locTask, 
+  modeDock = ArServerModeDock::createDock(&server, &robot, &locTask,
 					  &pathTask);
   if (modeDock != NULL)
   {
@@ -733,7 +733,7 @@ int main(int argc, char **argv)
   /* Services that allow the client to initiate scanning with the laser to
      create maps in Mapper3 (So not possible with SONARNL): */
 
-  ArServerHandlerMapping handlerMapping(&server, &robot, firstLaser, 
+  ArServerHandlerMapping handlerMapping(&server, &robot, firstLaser,
 					fileDir, "", true);
 
   // make laser localization stop while mapping
@@ -793,7 +793,7 @@ int main(int argc, char **argv)
 
 
   /* File transfer services: */
-  
+
 #ifdef WIN32
   // Not implemented for Windows yet.
   ArLog::log(ArLog::Normal, "Note, file upload/download services are not implemented for Windows; not enabling them.");
@@ -818,14 +818,14 @@ int main(int argc, char **argv)
   // start this program and this class here will forward video from the
   // server to the client.
   ArHybridForwarderVideo videoForwarder(&server, "localhost", 7070);
-  
+
   // make a camera to use in case we have video. the camera collection collects
-  // multiple ptz cameras 
+  // multiple ptz cameras
   ArPTZ *camera = NULL;
   ArServerHandlerCamera *handlerCamera = NULL;
   ArCameraCollection *cameraCollection = NULL;
 
-  // if we have video then set up a camera 
+  // if we have video then set up a camera
   if (videoForwarder.isForwardingVideo())
   {
 
@@ -840,15 +840,15 @@ int main(int argc, char **argv)
     // camera = new ArRVisionPTZ(&robot);
     camera->init();
 
-    handlerCamera = new ArServerHandlerCamera("Cam1", 
-		                                           &server, 
+    handlerCamera = new ArServerHandlerCamera("Cam1",
+		                                           &server,
 					                                     &robot,
-					                                     camera, 
+					                                     camera,
 					                                     cameraCollection);
 
     pathTask.addGoalFinishedCB(
 	    new ArFunctorC<ArServerHandlerCamera>(
-		    handlerCamera, 
+		    handlerCamera,
 		    &ArServerHandlerCamera::cameraModeLookAtGoalClearGoal));
   }
 
@@ -864,10 +864,10 @@ int main(int argc, char **argv)
 
     /* Load configuration values, map, and begin! */
 
-  
-  // When parsing the configuration file, also look at the program's command line options 
+
+  // When parsing the configuration file, also look at the program's command line options
   // from the command-line argument parser as well as the configuration file.
-  // (So you can use any argument on the command line, namely -map.) 
+  // (So you can use any argument on the command line, namely -map.)
   Aria::getConfig()->useArgumentParser(&parser);
   puts("xxx");puts("aaa"); fflush(stdout);
   // Read in parameter files.
@@ -905,14 +905,14 @@ int main(int argc, char **argv)
     ArLog::log(ArLog::Normal, "  12) Choose the Files section");
     ArLog::log(ArLog::Normal, "  13) Enter the path and name of your new .map file for the value of the Map parameter.");
     ArLog::log(ArLog::Normal, "  14) Press OK and your new map should become the map used");
-    ArLog::log(ArLog::Normal, "");    
+    ArLog::log(ArLog::Normal, "");
   }
 
   // Print a log message notifying user of the directory for map files
   ArLog::log(ArLog::Normal, "");
-  ArLog::log(ArLog::Normal, 
+  ArLog::log(ArLog::Normal,
 	     "Directory for maps and file serving: %s", fileDir);
-  
+
   ArLog::log(ArLog::Normal, "See the ARNL README.txt for more information");
   ArLog::log(ArLog::Normal, "");
 
@@ -923,7 +923,7 @@ int main(int argc, char **argv)
   // "Home" position, which can be obtained from the localization task (and is
   // used by the "Go to home" network request).
   locTask.localizeRobotAtHomeBlocking();
-  
+
   // Let the client switch manager (for multirobot) spin off into its own thread
   // TODO move to multirobot example?
   clientSwitch.runAsync();
@@ -934,8 +934,8 @@ int main(int argc, char **argv)
 
   // Add a key handler so that you can exit by pressing
   // escape. Note that this key handler, however, prevents this program from
-  // running in the background (e.g. as a system daemon or run from 
-  // the shell with "&") -- it will lock up trying to read the keys; 
+  // running in the background (e.g. as a system daemon or run from
+  // the shell with "&") -- it will lock up trying to read the keys;
   // remove this if you wish to be able to run this program in the background.
   ArKeyHandler *keyHandler;
   if ((keyHandler = Aria::getKeyHandler()) == NULL)
@@ -949,7 +949,7 @@ int main(int argc, char **argv)
   }
 
 
- 	
+
    TourGoalTaskExample TourTaskExample(&pathTask, &robot, &modeGoto, &parser);
 
 
@@ -960,4 +960,3 @@ int main(int argc, char **argv)
   robot.waitForRunExit();
   Aria::exit(0);
 }
-

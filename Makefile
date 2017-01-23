@@ -1,7 +1,15 @@
 
+ifndef ARIA
+ARIA:=/usr/local/Aria
+endif
+
+ifndef ARNL
+ARNL:=/usr/local/Arnl
+endif
+
 TARGETS:=arnlServerWithAsyncTaskChain arnlServerWithTourCallbacks
 
-CFLAGS:=-fPIC -I/usr/local/Arnl/include -I/usr/local/Arnl/include/Aria -I/usr/local/Arnl/include/ArNetworking
+CFLAGS:=-fPIC -I$(ARNL)/include -I$(ARNL)/include/Aria -I/$(ARNL)/include/ArNetworking
 
 LFLAGS:=-L/usr/local/Arnl/lib
 
@@ -11,8 +19,6 @@ all: $(TARGETS)
 	$(CXX) $(CFLAGS) -o $@ $^ $(LFLAGS) -lArnl -lBaseArnl -lArNetworkingForArnl -lAriaForArnl -lpthread -ldl -lrt
 
 clean:
-	-rm $(TARGETS) 
+	-rm $(TARGETS)
 
 .PHONY: all clean
-
-
