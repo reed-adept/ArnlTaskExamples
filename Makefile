@@ -7,16 +7,20 @@ ifndef ARNL
 ARNL:=/usr/local/Arnl
 endif
 
-TARGETS:=arnlServerWithAsyncTaskChain arnlServerWithTourCallbacks
+TARGETS:=arnlServerWithAsyncTaskChain remoteArnlTaskChain
 
-CFLAGS:=-fPIC -I$(ARNL)/include -I$(ARNL)/include/Aria -I/$(ARNL)/include/ArNetworking
-
-LFLAGS:=-L/usr/local/Arnl/lib
+ARNL_CFLAGS:=-fPIC -I$(ARNL)/include -I$(ARNL)/include/Aria -I/$(ARNL)/include/ArNetworking
+ARNL_LFLAGS:=-L$(ARNL)/lib -L$(ARNL)/lib64
+ARIA_CFLAGS:=-fPIC -I$(ARIA)/include -I$(ARIA)/ArNetworking/include
+ARIA_LFLAGS:=-L$(ARIA)/lib -L$(ARIA)/lib64
 
 all: $(TARGETS)
 
-%: %.cpp ArServerModeGoto2.cpp ArnlASyncTask.h
-	$(CXX) $(CFLAGS) -o $@ $^ $(LFLAGS) -lArnl -lBaseArnl -lArNetworkingForArnl -lAriaForArnl -lpthread -ldl -lrt
+arnlServerWithAsyncTaskChain: arnlServerWithAsyncTaskChain.cpp ArnlASyncTask.h
+	$(CXX) $(ARNL_CFLAGS) -o $@ $^ $(ARNL_LFLAGS) -lArnl -lBaseArnl -lArNetworkingForArnl -lAriaForArnl -lpthread -ldl -lrt
+
+remoteArnlTaskChain: remoteArnlTaskChain.cpp ArnlRemoteASyncTask.h
+	$(CXX) $(ARIA_CFLAGS) -o $@ $^ $(ARIA_LFLAGS) -lArNetworking -lAria -lpthread -ldl -lrt
 
 clean:
 	-rm $(TARGETS)

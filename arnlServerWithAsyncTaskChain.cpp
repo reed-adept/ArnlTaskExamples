@@ -7,108 +7,35 @@
 #include "ArLocalizationTask.h"
 #include "ArDocking.h"
 
+#include "ArnlASyncTask.h"
 
-/** Example of an ArASyncTask subclass that runs new threads when ARNL reaches goals. 
-   At each goal, a new thread is created which can perform some action
-  asyncronously (while the ARNL path planning thread continues), and then
-  choose a new goal for ARNL, creating a chain of goals and tasks performed after
-  reaching them.  This example assumes that there are four goals, named: Goal 1, 
-  Goal 2, Goal 3 and Goal 4.
 
-  One instance of this class is created in the program's main() function below
-  providing the ARNL path planning task, ArRobot object, etc. and it sets everything up in its
-  constructor.  
-
-  To do something similar for your application, you can rename this class (and
-  its instantiation in the main() functiont below), and modify what is done in
-  the runThread() method.
-
-  Note one instance of this class is created for the
-  whole program, but new threads may be created at any time (whenever ARNL happens
-  to reach a goal), these threads are sharing access to the variables withhin the
-  class, and so this access is synchronized using a mutex. Make certain you do
-  not keep the mutex locked during any long running operations or operations of
-  indeterminate duration, and that in all logical paths through the code, the
-  mutex is eventually unlocked if locked.  
-
-  In normal operation,
-  a new goal in the chain is set immediately before the runThread() method exits
-  (ending the thread), but this behavior is not enforced.  For example, a user can
-  manually choose a goal using MobileEyes while the task is running;  this is not
-  detected or handled by this class.  To do so, you could use an ArNetworking
-  server mode (see ArServerMode).  
-
-  This class also adds some parameters to the global ArConfig, so users can
-  modify them. The parameters are added to a "ARNL ASyncTask Example" section.
-*/
-class ArnlASyncTaskExample : public virtual ArASyncTask
+class ArnlASyncTaskExample : public virtual ArnlASyncTask
 {
-public:
-	ArPathPlanningTask *myPathPlanner;
   ArServerModeGoto *myServerMode;
   int myCurrentGoal;
-  ArFunctor1C<ArnlASyncTaskExample, ArPose> myGoalDoneCB;
-  ArRobot *myRobot;
-  int myApproachDist;
   int myNumGoals;
-  bool myEnabled;
-  ArMutex myMutex;
-
-  void waitForMoveDone() {
-    while(!myRobot->isMoveDone())
-      ArUtil::sleep(100);
-  }
-
-  void lock() {
-    myMutex.lock();
-  }
-
-  void unlock() {
-    myMutex.unlock();
-  }
-
-
-  /** A callback is added that performs tasks at each goal, and some parameters
-   * are addded to ArConfig. 
-   */
-  ArnlASyncTaskExample(ArPathPlanningTask *pp, ArRobot *robot, ArServerModeGoto *servermode = NULL, ArArgumentParser *argParser = NULL) : 
-    myPathPlanner(pp), myServerMode(servermode), myCurrentGoal(1), myGoalDoneCB(this, &ArnlASyncTaskExample::goalDone),
-		myRobot(robot), myApproachDist(250), myNumGoals(4), myEnabled(true)
+  int myApproachDist;
+public:
+  ArnlASyncTaskExample(ArPathPlanningTask *pp, ArRobot *robot, ArServerModeGoto *servermode, ArArgumentParser *argParser) : 
+    ArnlAsyncTask(pp, robot, "Example ARNL Goal Task", argParser),
+    myServerMode(servermode), myCurrentGoal(1), myNumGoals(4), myApproachDist(250)
 	{	
-
-    // Add some parameters to ArConfig in a new "ARNL ASyncTask Example" section so the user can adjust them from
-    // MobileEyes:
-		ArConfig *config = Aria::getConfig();
-		config->addParam(ArConfigArg("ApproachDist", &myApproachDist, "distance to approach drop point"), "ARNL ASyncTask Example");
-		config->addParam(ArConfigArg("NumGoals", &myNumGoals, "number of goals in chain"), "ARNL ASyncTask Example");
-		config->addParam(ArConfigArg("Enabled", &myEnabled, "enable example robot task at all goals"), "ARNL ASyncTask Example");
-		if(!myEnabled) return;
-
-    // Add a callback to be called when ARNL reaches goals:
-		myPathPlanner->addGoalDoneCB(&myGoalDoneCB);
+    // Add some parameters to ArConfig so they can be changed in MobileEyes.
+		addConfigParam(ArConfigArg("ApproachDist", &myApproachDist, "distance to approach drop point"));
+		addConfigParam(ArConfigArg("NumGoals", &myNumGoals, "number of goals in chain"));
 
     ArLog::log(ArLog::Normal, "ArArnlASyncTaskExample created:  will perform tasks at each goal, and then send ARNL to another. ");
 	}
 
-  /* This is the "goal done" callback called by the ARNL path planning thread
-   * when the a goal point is sucessfully reached.  We run a new thread here to
-   * perform our task.
-   */
-	void goalDone(ArPose pose)
-	{
-		runAsync();
-	}
-
-  /* This is called for each new thread, at each goal point.  
-   * It moves the robot forward a bit, tells Actin
-   * to do the next arm action (numbered from 0 to myNumGoals), waits 2 seconds,
+  /* This is called at each goal point.  It moves the robot forward a bit, waits 3 seconds
    * then backs the mobile robot up.  Then it tells the ARNL path planner to
    * navigate to the next goal point in the chain (named Goal 0, Goal 1, Goal 2, etc.)
-   * The last goal point is special, no arm action and the chain of ARNL goals
+   * The last goal point is special, no action and the chain of ARNL goals
    * stops.  The robot will wait at this goal point until sent to the first
    * goal manually from MobileEyes.
    */
-	void *runThread(void *)
+	void runTask()
 	{
     // Make copies of variables shared between threads 
     lock();
@@ -125,7 +52,7 @@ public:
       lock();
 			myCurrentGoal = 1;
       unlock();
-			return 0; // end of thread
+			return; // end of thread
 		}
 
 
@@ -143,10 +70,10 @@ public:
 		// move forward a bit
 		ArLog::log(ArLog::Normal, "Moving forward a bit");
     if(myServerMode) myServerMode->setStatus("Moving forward");
-		myRobot->clearDirectMotion();
-		myRobot->move(moveDist);
+		getRobot()->clearDirectMotion();
+		getRobot()->move(moveDist);
 		waitForMoveDone();
-		myRobot->clearDirectMotion();
+		getRobot()->clearDirectMotion();
     ArUtil::sleep(500);
 
     // Wait a bit.  
@@ -158,10 +85,10 @@ public:
 		// back up a bit
 		ArLog::log(ArLog::Normal, "Backing up a bit");
 		if(myServerMode) myServerMode->setStatus("Backing up a bit");
-		myRobot->clearDirectMotion();
-		myRobot->move(-moveDist);
+		getRobot()->clearDirectMotion();
+		getRobot()->move(-moveDist);
 		waitForMoveDone();
-		myRobot->clearDirectMotion();
+		getRobot()->clearDirectMotion();
     ArUtil::sleep(500);
 
 
@@ -175,7 +102,7 @@ public:
 		snprintf(name, 127, "Goal %d", currentGoal); 
 		ArLog::log(ArLog::Normal, "Going to next goal %s", name);
     if(myServerMode) myServerMode->setStatus("ASyncTask example done. Going to next goal.");
-		myPathPlanner->pathPlanToGoal(name);
+    nextGoal(name);
 
     // Save the new goal index
     lock();
@@ -183,7 +110,7 @@ public:
     unlock();
 
     // This is the end of the thread. 
-    return 0;
+    return;
 	}
 	
 };

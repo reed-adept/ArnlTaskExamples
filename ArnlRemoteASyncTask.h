@@ -1,5 +1,5 @@
-#ifndef ARNLASYNCTASK_H
-#define ARNLASYNCTASK_H
+#ifndef ARNLREMOTEASYNCTASK_H
+#define ARNLREMOTEASYNCTASK_H
 
 /*
 Copyright (c) 2017 Omron Adept MobileRobots LLC
@@ -8,26 +8,32 @@ All rights reserved. 
 
 #include "Aria.h"
 #include "ArNetworking.h"
-#include "Arnl.h"
-#include "ArPathPlanningTask.h"
+#include "ArClientHandlerRobotUpdate.h"
 
 /**
-  Use this to help run your own custom tasks or activities, triggered when ARNL navigation
-  reaches goals.
+  Use this to help run your own custom tasks or activities, triggered when a 
+  remote ARNL server reaches goals.
 
-  When ARNL (@ pp) successfully reaches a goal, a new thread is created to perform your
+  When the ARNL server successfully reaches a goal, a new thread is created to perform your
   custom (potentially long-running) task.  Optionally, a goal's name must match either
   the given @a prefix or @a suffix.  (Default behavior is to run at each goal.)
 
-  The ARNL path planning thread continues to execute asynchronously.
+  The ARNL server continues to execute asynchronously.
+
+  Note: Since new threads are created to trigger each task, it is possible for
+  more than one task thread to be running simultaneously (e.g. if ARNL is sent
+  to a new goal and reaches it before a prior task has completed.)   If you wish
+  to avoid this you can use a static flag and ArMutex, or use an ArCondition object to
+  coordinate the threads.  Or design your application to always request goals at
+  the end of a task thread. 
 
   To define a task for your application, either supply a callback
-  function or define a new subclass of ArnlAsyncTAsk.  
+  function or define a new subclass of ArnlRemoteASyncTask.  
 
-  To use a callback function in C++, create a functor object, and pass it to 
-  the ArASyncTask constructor, with a task name.  In Python, you can also just 
-  supply a reference to a function, or a lambda expression.   You can supply 
-  either a pointer or copy of any ArFunctor. If that functor can recieve a goal 
+  To use a callback function in C++, create a functor object, and pass a pointer to
+  the ArnlRemoteASyncTask constructor, with a task name.  In Python, you can also just 
+  supply a reference to a function, or a lambda expression.  
+  If that functor can recieve a goal 
   name (as a <tt>const std::string&</tt> argument) or goal position (as a 
   <tt>const ArPose&</tt>) (because a <tt>dynamic_cast</tt> is successful), then it 
   will be invoked with that argument.
@@ -35,12 +41,12 @@ All rights reserved. 
   Use a callback if the action you want to perform can be done by
   calling a method of an existing class, or a global function.
 
-  An alternative is to define a new subclass of ArnlAsyncTask which overrides the runTask() 
+  An alternative is to define a new subclass of ArnlRemoteAsyncTask which overrides the runTask() 
   and getName() methods.  
   You may also override the constructor, if needed, but be sure to call the
   base class constructor.  
   If, in addition to overriding the runTask()
-  method, you supply a functor to ArnlASyncTask, the functor is called after
+  method, you supply a functor to ArnlRemoteASyncTask, the functor is called after
   runTask() is called.
 
   Use a subclass if you want to encapsulate complex behavior requiring multiple
@@ -55,22 +61,29 @@ All rights reserved. 
   to enable or disable the task.  You may add additional configuration
   parameters to this section if desired by calling addConfigParam().
 
+  You may call nextGoal("goal name"); to request a new goal.
+  (This is just a shortcut to calling requestOnce() with "gotoGoal" and the new
+  goal name.)
 
-  You may call nextGoal("goal name"); to plan to another goal if desired.
-  (This is just a shortcut to calling ArPathPlanningTask::pathPlanToGoal()).
+  @note one instance of this class is typically created for the
+  whole program, but new threads may be created at any time (whenever ARNL happens
+  to reach a goal), these threads are sharing access to the variables withhin the
+  class, and so this access is synchronized using a mutex. Make certain you do
+  not keep the mutex locked during any long running operations or operations of
+  indeterminate duration, and that in all logical paths through the code, the
+  mutex is eventually unlocked if locked.
 
 
   C++ Code Examples:
 
   @code{.cpp}
-  class MyTask : public virtual ArnlASyncTask
+  class MyTask : public virtual ArnlRemoteASyncTask
   {
   public:
-    MyTask(int defaultValue, ArPathPlanningTask *path, ArRobot *robot, ArArgumentParser *argParser = NULL)  :
-      ArnlASyncTask(path, robot, argParser),
+    MyTask(int defaultValue, ArClientBase *client, ArArgumentParser *argParser = NULL)  :
+      ArnlRemoteASyncTask(client, argParser),
       myValue(defaultValue)
     {
-      addConfigParam(ArConfigArg("Example Value", &myValue));
     }
 
     virtual const char *getName() const
@@ -83,27 +96,37 @@ All rights reserved. 
       ArLog::log(ArLog::Normal, "%s: This is an example ARNL goal task.", getName());
       ArUtil::sleep(5000);
       ArLog::log(ArLog::Normal, "%s: Task ended.", getName());
-      return 0;
+      nextGoal("new goal");
+      return;
     }
   };
+  
 
+  int main(int argc, char **argv)
+  {
+    //... initialize ARIA and connect client to server...
+
+    MyTask task1(&server);
+    task1.runIfGoalNameSuffix("-dotask1");
+
+    // ...
+  }
+  @endcode
+
+  @code{.cpp}
   void goalfunc(const std::string& goalname, const ArPose& pose)
   {
     puts("Goal!");
   }
-  @endcode
 
-  ...
-
-  @code{.cpp}
-  MyTask task1(&pathPlanningTask, &robot, &argParser);
-
-  task1.runIfGoalNameSuffix("-dotask1");
-
-  ArnlASyncTask task2(&pathPlanningTask, &robot, &argParser, "Example Task 2",
-    ArGlobalFunctor2<const std::string&, const ArPose&>(&goalFunc));
-
-  task2.runIfGoalNameSuffix("-dotask2");
+  int main(int argc, char **argv)
+  {
+    //... initialize ARIA and connect client to server...
+    ArGlobalFunctor2<const std::string&, const ArPose&> callback(&goalFunc));
+    ArnlASyncTask task2(&server, &callback, "Example Task 2",
+    task2.runIfGoalNameSuffix("-dotask2");
+    // ...
+  }
   @endcode
 
 
@@ -111,34 +134,28 @@ All rights reserved. 
 
   @code{.py}
 
-  class MyTask: ArnlAsyncTask
-    def init(self, value, pathTask, robot, argParser):
-      ArnlAsyncTask.init(self, pathTask, robot, argParser)
+  class MyTask: ArnlRemoteAsyncTask
+
+    def init(self, value, server, argParser):
+      ArnlRemoteAsyncTask.init(self, server, argParser)
       self.value = value
-      addConfigParam(ArConfigArg('Example Value'), self.value)
+
     def runTask:
       ArLog.log(ArLog.Normal, '%s: This is an example ARNL goal task.' % getName())
       ArUtil.sleep(5000)
       ArLog.log(ArLog.Normal, '%s: Task ended.' % getName())
+      nextGoal('new goal')
+
+  # ... initialize ARIA and ArNetworking and connect to server here ...
+
+  task = MyTask(23, server, argParser)
+  task.runIfGoalNameSuffix('-dotask1')
   @endcode
 
 
-  @note Since ArPathPlanningTask continues to execute asynchronously, it is posnsible
-  for it to begin navigating to another goal while your task is also still executing
-  (for example, sent via MobileEyes.)  You can use ArPathPlanningInterface::addNewGoalCB()
-  to register a callback in order to be notified if a new goal is set.
-
-  @note one instance of this class is created for the
-  whole program, but new threads may be created at any time (whenever ARNL happens
-  to reach a goal), these threads are sharing access to the variables withhin the
-  class, and so this access is synchronized using a mutex. Make certain you do
-  not keep the mutex locked during any long running operations or operations of
-  indeterminate duration, and that in all logical paths through the code, the
-  mutex is eventually unlocked if locked.
-
 
 */
-class ArnlASyncTask : public virtual ArASyncTask
+class ArnlRemoteASyncTask : public virtual ArASyncTask
 {
 public:
   typedef ArFunctor2<const std::string&, const ArPose&> TaskFunctor;
@@ -158,16 +175,17 @@ public:
     defining a subclass instead.
     @param functor Functor referencing method or function to call. A copy of this functor is stored.
    */
-  ArnlASyncTask(ArPathPlanningTask *pp, ArRobot *robot, 
+  ArnlRemoteASyncTask(ArClientBase *client,
     const std::string& name, TaskFunctor *functor,
     ArArgumentParser *argParser = NULL,
     const std::string& goalPrefix = "", const std::string& goalSuffix = ""
   ) :
     myName(name),
-    myGoalDoneCB(this, &ArnlASyncTask::goalDone),
+    myUpdateHandler(client),
+    myStatusChangedCB(this, &ArnlRemoteASyncTask::statusChanged),
     myFunctor(functor), myAllocatedFunctor(false)
   {
-    init(pp, robot, argParser, goalPrefix, goalPrefix);
+    init(client, argParser, goalPrefix, goalPrefix);
   }
 
 protected:
@@ -182,38 +200,36 @@ protected:
       match. If neither is provided (both are "") the task runs at all goals.
       (See also runIfGoalNameSuffix().)
   */
-  ArnlASyncTask(ArPathPlanningTask *pp, ArRobot *robot, 
+  ArnlRemoteASyncTask(ArClientBase *client,
     const std::string& name = "unnamed ArnlASyncTask",
     ArArgumentParser *argParser = NULL,
     const std::string& goalPrefix = "", const std::string& goalSuffix = ""
   ) :
     myName(name),
-    myGoalDoneCB(this, &ArnlASyncTask::goalDone),
+    myUpdateHandler(client),
+    myStatusChangedCB(this, &ArnlRemoteASyncTask::statusChanged),
     myFunctor(new NullTaskFunctor()), myAllocatedFunctor(true)
   {
-    init(pp, robot, argParser, goalPrefix, goalPrefix);
+    init(client, argParser, goalPrefix, goalPrefix);
   }
 
-  virtual ~ArnlASyncTask()
+  virtual ~ArnlRemoteASyncTask()
   {
-    // config->remParam(getConfigSectionName(), "Enabled"); // XXX TODO when ArConfig has remParam
-    if(myPathPlanningTask) myPathPlanningTask->remGoalDoneCB(&myGoalDoneCB);
+    myUpdateHandler.remStatusChangedCB(&myStatusChangedCB);
+    myUpdateHandler.stopUpdates();
     if(myAllocatedFunctor) delete myFunctor;
   }
 
 private:
-  void init(ArPathPlanningTask *pp, ArRobot *robot, ArArgumentParser *argParser,
+  void init(ArClientBase *client, ArArgumentParser *argParser,
     const std::string& goalPrefix, const std::string& goalSuffix
   )
 	{
-    myPathPlanningTask = pp;
-		myRobot = robot;
-    myEnabled = true;
+    myClient = client;
     myHaveGoalNamePrefix = false;
     myHaveGoalNameSuffix = false;
-		ArConfig *config = Aria::getConfig();
-		config->addParam(ArConfigArg("Enabled", &myEnabled, "Whether this task is enabled"), getConfigSectionName());
-		myPathPlanningTask->addGoalDoneCB(&myGoalDoneCB);
+    myUpdateHandler.addStatusChangedCB(&myStatusChangedCB);
+    myUpdateHandler.requestUpdates();
     if(goalPrefix != "")
       runIfGoalNamePrefix(goalPrefix);
     if(goalSuffix != "")
@@ -245,31 +261,11 @@ protected:
   /// Utility that you can use to easily set a new goal on the path planner task
   void nextGoal(const std::string goalName)
   {
-    ArLog::log(ArLog::Normal, "%s: Going to new goal: %s", getName(), goalName.c_str());
-    myPathPlanningTask->pathPlanToGoal(goalName.c_str());
-  }
-
-  /// Utility in case you are using ArRobot::move() in a task but want to wait in that task thread for the movement
-  void waitForMoveDone()
-  {
-    myRobot->lock();
-    while(!myRobot->isMoveDone())
-    {
-      myRobot->unlock();
-      ArUtil::sleep(100);
-      myRobot->lock();
-    }
-    myRobot->unlock();
+    ArLog::log(ArLog::Normal, "%s: [%s] Sending request to go to new goal: %s", getName(), myClient->getHost(), goalName.c_str());
+    myClient->requestOnceWithString("gotoGoal", goalName.c_str());
   }
 
 protected:
-  virtual const char *getConfigSectionName() const {
-    return getName();
-  }
-
-  bool addConfigParam(const ArConfigArg &arg) {
-    return Aria::getConfig()->addParam(arg, getConfigSectionName());
-  }
   void lock() {
     myMutex.lock();
   }
@@ -278,16 +274,13 @@ protected:
     myMutex.unlock();
   }
 
-  ArRobot *getRobot() { return myRobot; }
-
-  ArPathPlanningTask *getPathPlanningTask() { return myPathPlanningTask; }
+  ArClientBase *getClient() { return myClient; }
 
 private:
   std::string myName;
-	ArPathPlanningTask *myPathPlanningTask;
-  ArFunctor1C<ArnlASyncTask, ArPose> myGoalDoneCB;
-  ArRobot *myRobot;
-  bool myEnabled;
+	ArClientBase *myClient;
+  ArClientHandlerRobotUpdate myUpdateHandler;
+  ArFunctor2C<ArnlRemoteASyncTask, const char*, const char*> myStatusChangedCB;
   ArMutex myMutex;
   bool myHaveGoalNamePrefix, myHaveGoalNameSuffix;
   std::string myGoalNamePrefix, myGoalNameSuffix;
@@ -304,7 +297,7 @@ private:
   {
     const std::string gn = myLastGoalName;
     const ArPose& p = myLastGoalPose;
-    ArLog::log(ArLog::Normal, "%s: Running at %s (%.2f, %.2f, %.2f) ...", getName(), gn.c_str(), p.getX(), p.getY(), p.getTh());
+    ArLog::log(ArLog::Normal, "%s: [%s] Running at %s (%.2f, %.2f, %.2f) ...", getName(), getClient()->getHost(), gn.c_str(), p.getX(), p.getY(), p.getTh());
     runTask();
     myFunctor->invoke(gn, p);
     return 0;
@@ -315,45 +308,61 @@ private:
    * perform our task.
    * @internal
    */
-	void goalDone(ArPose pose)
+	void statusChanged(const char *m, const char *s)
 	{
-    if(myEnabled && matchCriteria())
+    const char *thisGoalName = getGoalNameFromStatus(s);
+
+    if(thisGoalName == NULL)
     {
-      myLastGoalPose = pose;
-      myLastGoalName = myPathPlanningTask->getCurrentGoalName();
+      return;
+    }
+      
+    if(matchCriteria(thisGoalName))
+    {
+      myLastGoalPose = myUpdateHandler.getPose();
+      myLastGoalName = thisGoalName;
       runAsync();
     }
 	}
 
   /// Check whether any criteria for running the task match the current goal
   /// @internal
-  bool matchCriteria()
+  bool matchCriteria(const std::string& gn)
   {
-    if(myHaveGoalNamePrefix && goalNamePrefixMatch(myGoalNamePrefix))
+    if(myHaveGoalNamePrefix && prefixMatch(gn, myGoalNamePrefix))
       return true;
-    if(myHaveGoalNameSuffix && goalNameSuffixMatch(myGoalNameSuffix))
+    if(myHaveGoalNameSuffix && suffixMatch(gn, myGoalNameSuffix))
       return true;
     // TODO tags from goal (change "ICON" to tags)
     return false;
   }
 
   /// @internal
-  bool goalNamePrefixMatch(const std::string& prefix)
+  bool prefixMatch(const std::string& str, const std::string& prefix)
   {
     // todo more efficient compare
-    return (myPathPlanningTask->getCurrentGoalName().compare(0, prefix.size(), prefix) == 0);
+    return (str.compare(0, prefix.size(), prefix) == 0);
   }
 
   /// @internal
-  bool goalNameSuffixMatch(const std::string& suffix)
+  bool suffixMatch(const std::string& str, const std::string& suffix)
   {
     // todo more efficient compare
-    const std::string& currentname = myPathPlanningTask->getCurrentGoalName();
-    return (currentname.compare(currentname.size()-suffix.size(), currentname.size(), suffix));
+    return (str.compare(str.size()-suffix.size(), str.size(), suffix));
   }
+
+  const char *getGoalNameFromStatus(const std::string& s)
+  {
+    if(prefixMatch(s, "Arrived at"))
+    {
+      return s.substr(11).c_str(); // 11 == strlen("Arrived at ")
+    }
+    return NULL;
+  }
+
 };
 
-typedef ArnlASyncTask ArnlAsyncTask;
+typedef ArnlRemoteASyncTask ArnlRemoteAsyncTask;
 
 
 #endif
